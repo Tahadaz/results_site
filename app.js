@@ -14,6 +14,9 @@ async function fetchText(url) {
   if (!r.ok) throw new Error(`Failed to load ${url}: ${r.status}`);
   return await r.text();
 }
+function normalizeTicker(t) {
+  return String(t ?? "").trim().toUpperCase();
+}
 
 // -----------------------------
 // CSV parsing (robust, supports quoted commas + escaped quotes)
@@ -178,10 +181,11 @@ function setupSearch() {
   input.addEventListener("input", () => {
     const q = input.value.trim().toLowerCase();
     const filtered = STOCKS.filter(s => {
-      const a = (s.ticker || "").toLowerCase();
+      const a = (s.ticker_norm || "").toLowerCase();
       const b = (s.name || "").toLowerCase();
       return a.includes(q) || b.includes(q);
     });
+
     renderStockList(filtered);
   });
 }
@@ -310,6 +314,33 @@ function formatBestParams(raw) {
 
   return lines.join("\n");
 }
+function pickParam(obj, path, fallback = null) {
+  try {
+    return path.split(".").reduce((acc, k) => acc?.[k], obj) ?? fallback;
+  } catch { return fallback; }
+}
+
+function makeBestParamsSummary(parsed) {
+  // you can tailor these to what you care about
+  const window = pickParam(parsed, "strategy.window", "");
+  const buy = pickParam(parsed, "portfolio.buy_pct_cash", "");
+  const sell = pickParam(parsed, "portfolio.sell_pct_shares", "");
+  const cd = pickParam(parsed, "portfolio.cooldown_bars", "");
+  const minR = pickParam(parsed, "portfolio.min_return_before_sell", "");
+
+  const bits = [];
+  if (window !== "") bits.push(`window=${window}`);
+  if (buy !== "") bits.push(`buy=${buy}`);
+  if (sell !== "") bits.push(`sell=${sell}`);
+  if (cd !== "") bits.push(`cd=${cd}`);
+  if (minR !== "") bits.push(`minRet=${minR}`);
+
+  return bits.join(" · ");
+}
+
+function prettyJSON(parsed) {
+  return JSON.stringify(parsed, null, 2);
+}
 
 // -----------------------------
 // Rendering: Leaderboard
@@ -338,11 +369,38 @@ function renderLeaderboard(headers, rows) {
       const td = document.createElement("td");
       const v = r[h] ?? "";
       if (h.toLowerCase() === "best params") {
-        td.classList.add("mono", "wrap");
-        td.textContent = formatBestParams(v);
-      } else {
-        td.textContent = v;
+        const parsed = safeJSONParseBestParams(v);
+
+        td.classList.add("bestparams");
+
+        const summary = document.createElement("div");
+        summary.className = "bestparams__summary mono";
+        summary.textContent = parsed ? makeBestParamsSummary(parsed) : String(v ?? "");
+
+        const btn = document.createElement("button");
+        btn.className = "btn btn--ghost bestparams__btn";
+        btn.type = "button";
+        btn.textContent = "Details";
+
+        const details = document.createElement("pre");
+        details.className = "bestparams__details mono";
+        details.textContent = parsed ? prettyJSON(parsed) : String(v ?? "");
+        details.hidden = true;
+
+        btn.addEventListener("click", () => {
+          details.hidden = !details.hidden;
+          btn.textContent = details.hidden ? "Details" : "Hide";
+        });
+
+        td.appendChild(summary);
+        td.appendChild(btn);
+        td.appendChild(details);
+
+        tr.appendChild(td);   // ✅ append the cell
+        return;               // ✅ return from this callback AFTER appending
       }
+
+
 
       // right align numeric-ish
       if (tryNumber(v) !== null) td.classList.add("right");
@@ -532,6 +590,11 @@ async function init() {
 
   SITE = await fetchJSON("assets/results/manifest.json");
   STOCKS = SITE.stocks || [];
+  STOCKS = STOCKS.map(s => ({
+  ticker_raw: s.ticker,
+  ticker_norm: normalizeTicker(s.ticker),
+}));
+
 
   renderAbout(SITE);
   renderStockList(STOCKS);
@@ -558,7 +621,7 @@ async function init() {
 
   // If at least one stock, auto-load first
   if (STOCKS.length > 0) {
-    await loadStock(STOCKS[0].ticker);
+    await loadStock(STOCKS[0].ticker_norm);
   } else {
     showContentPanels(false);
   }
