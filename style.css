@@ -504,3 +504,23 @@ code{
   font-size: 0.85rem;
   line-height: 1.25;
 }
+/* Aggregated signal pill */
+.signal{
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+
+.signal--buy{
+  border-color: rgba(22,163,74,0.25);
+  background: rgba(22,163,74,0.08);
+}
+
+.signal--sell{
+  border-color: rgba(220,38,38,0.25);
+  background: rgba(220,38,38,0.08);
+}
+
+.signal--hold{
+  border-color: rgba(100,116,139,0.25);
+  background: rgba(100,116,139,0.06);
+}

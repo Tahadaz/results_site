@@ -479,6 +479,46 @@ function renderPlotPicker(plots) {
 
   sel.onchange = () => setActivePlot(sel.value);
 }
+function findHeaderCaseInsensitive(headers, wantLower) {
+  const map = new Map(headers.map(h => [String(h).trim().toLowerCase(), h]));
+  return map.get(wantLower) || null;
+}
+
+function computeAggregateSignal(headers, rows) {
+  // find "signal" column case-insensitively
+  const sigH =
+    findHeaderCaseInsensitive(headers, "signal") ||
+    findHeaderCaseInsensitive(headers, "signals") ||
+    findHeaderCaseInsensitive(headers, "sig");
+
+  if (!sigH) return { sum: 0, label: "HOLD" };
+
+  let sum = 0;
+  for (const r of rows) {
+    const raw = r?.[sigH];
+    const n = Number(String(raw ?? "").trim());
+    if (Number.isFinite(n)) sum += n;
+  }
+
+  const label = sum > 0 ? "BUY" : sum < 0 ? "SELL" : "HOLD";
+  return { sum, label };
+}
+
+function renderAggregateSignalUI({ sum, label }) {
+  const node = $("#stockAggSignal");
+  if (!node) return;
+
+  node.style.display = ""; // show pill
+  node.textContent = label;
+
+  node.classList.remove("signal--buy", "signal--sell", "signal--hold");
+  if (label === "BUY") node.classList.add("signal--buy");
+  else if (label === "SELL") node.classList.add("signal--sell");
+  else node.classList.add("signal--hold");
+
+  // optional tooltip
+  node.title = `Sum(signal) = ${sum}`;
+}
 
 function setActivePlot(file) {
   ACTIVE_PLOT = file || null;
@@ -570,6 +610,9 @@ async function loadStock(ticker) {
   const { headers, rows } = parseCSV(csv);
   LB_HEADERS = headers;
   LB_ROWS = rows;
+  // NEW: compute + render aggregated signal for this stock
+  const agg = computeAggregateSignal(LB_HEADERS, LB_ROWS);
+  renderAggregateSignalUI(agg);
 
   // sort metric
   const metric = $("#rankBy").value || "CAGR";
