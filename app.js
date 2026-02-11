@@ -16,21 +16,66 @@ async function fetchText(url) {
 }
 
 // -----------------------------
-// CSV parsing (simple)
+// CSV parsing (robust, supports quoted commas + escaped quotes)
 // -----------------------------
 function parseCSV(csvText) {
-  const lines = csvText.trim().split(/\r?\n/).filter(Boolean);
-  if (lines.length === 0) return { headers: [], rows: [] };
+  const text = (csvText ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  if (!text.trim()) return { headers: [], rows: [] };
 
-  const headers = lines[0].split(",").map(s => s.trim());
-  const rows = lines.slice(1).map(line => {
-    const cols = line.split(","); // simple parse; assumes no quoted commas
+  const rows = [];
+  let row = [];
+  let field = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+
+    if (inQuotes) {
+      if (c === '"') {
+        // escaped quote "" -> "
+        if (text[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += c;
+      }
+    } else {
+      if (c === '"') {
+        inQuotes = true;
+      } else if (c === ",") {
+        row.push(field);
+        field = "";
+      } else if (c === "\n") {
+        row.push(field);
+        field = "";
+        // ignore empty trailing lines
+        if (row.some(x => x.trim() !== "")) rows.push(row);
+        row = [];
+      } else {
+        field += c;
+      }
+    }
+  }
+
+  // flush last field/row
+  row.push(field);
+  if (row.some(x => x.trim() !== "")) rows.push(row);
+
+  const headers = (rows[0] ?? []).map(s => (s ?? "").trim());
+  const dataRows = rows.slice(1);
+
+  const outRows = dataRows.map(cols => {
     const obj = {};
-    headers.forEach((h, i) => obj[h] = (cols[i] ?? "").trim());
+    headers.forEach((h, idx) => obj[h] = (cols[idx] ?? "").trim());
     return obj;
   });
-  return { headers, rows };
+
+  return { headers, rows: outRows };
 }
+
 
 // -----------------------------
 // DOM helpers
@@ -196,6 +241,75 @@ function renderProfile(profile) {
     setVisible("#stockNotes", false);
   }
 }
+function safeJSONParseBestParams(raw) {
+  if (!raw) return null;
+
+  let s = String(raw).trim();
+
+  // If cell is wrapped in extra quotes, remove them
+  if (s.length >= 2 && s[0] === '"' && s[s.length - 1] === '"') {
+    s = s.slice(1, -1);
+  }
+
+  // Handle the CSV-style doubled quotes {""a"":1} -> {"a":1}
+  if (s.includes('""')) s = s.replace(/""/g, '"');
+
+  // Sometimes people export with single quotes (rare but possible)
+  // We do NOT blindly replace all single quotes (can corrupt data),
+  // but if JSON.parse fails, we attempt a conservative fallback.
+  try {
+    return JSON.parse(s);
+  } catch (_) {
+    try {
+      const s2 = s.replace(/([{,]\s*)'([^']+?)'(\s*:)/g, '$1"$2"$3')  // keys
+                  .replace(/:\s*'([^']*?)'(\s*[},])/g, ':"$1"$2');   // string values
+      return JSON.parse(s2);
+    } catch (e2) {
+      return null;
+    }
+  }
+}
+
+function flattenParams(obj, prefix = "") {
+  const out = [];
+  if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+    const keys = Object.keys(obj).sort();
+    for (const k of keys) {
+      const v = obj[k];
+      const p = prefix ? `${prefix}.${k}` : k;
+      if (v && typeof v === "object" && !Array.isArray(v)) {
+        out.push(...flattenParams(v, p));
+      } else {
+        out.push([p, v]);
+      }
+    }
+  }
+  return out;
+}
+
+function formatBestParams(raw) {
+  const parsed = safeJSONParseBestParams(raw);
+  if (!parsed) return String(raw ?? "");
+
+  // Group by top-level (portfolio, strategy, etc.) for readability
+  const topKeys = Object.keys(parsed).sort();
+  const lines = [];
+
+  for (const top of topKeys) {
+    const v = parsed[top];
+    if (v && typeof v === "object" && !Array.isArray(v)) {
+      lines.push(`${top}:`);
+      const pairs = flattenParams(v, "");
+      for (const [k, val] of pairs) {
+        lines.push(`  ${k} = ${val}`);
+      }
+    } else {
+      lines.push(`${top} = ${v}`);
+    }
+  }
+
+  return lines.join("\n");
+}
 
 // -----------------------------
 // Rendering: Leaderboard
@@ -223,7 +337,13 @@ function renderLeaderboard(headers, rows) {
     headers.forEach(h => {
       const td = document.createElement("td");
       const v = r[h] ?? "";
-      td.textContent = v;
+      if (h.toLowerCase() === "best params") {
+        td.classList.add("mono", "wrap");
+        td.textContent = formatBestParams(v);
+      } else {
+        td.textContent = v;
+      }
+
       // right align numeric-ish
       if (tryNumber(v) !== null) td.classList.add("right");
       tr.appendChild(td);
