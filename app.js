@@ -34,6 +34,103 @@ function pickTicker(s) {
     "";
   return String(t).trim();
 }
+const GLOSSARY_LINKS = {
+  "cagr": "glossary.html#cagr",
+  "total return": "glossary.html#total-return",
+  "maxdd": "glossary.html#max-drawdown",
+  "max drawdown": "glossary.html#max-drawdown",
+  "drawdown": "glossary.html#max-drawdown",
+  "sharpe": "glossary.html#sharpe",
+  "signal": "glossary.html#signal",
+};
+function formatNumber2(n) {
+  return Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function formatLedgerCellValue(v) {
+  const n = tryNumber(v);
+  if (n === null) return String(v ?? "");
+  return formatNumber2(n);
+}
+
+function clearLedgerUI(message = "No ledger available for this strategy.") {
+  const panel = $("#plotLedgerPanel");
+  const meta = $("#plotLedgerMeta");
+  const thead = $("#plotLedgerThead");
+  const tbody = $("#plotLedgerTbody");
+
+  if (thead) thead.innerHTML = "";
+  if (tbody) tbody.innerHTML = `<tr><td class="muted">${message}</td></tr>`;
+  if (meta) meta.textContent = "—";
+  if (panel) panel.style.display = "none";
+}
+
+function renderLedgerTable(headers, rows) {
+  const panel = $("#plotLedgerPanel");
+  const thead = $("#plotLedgerThead");
+  const tbody = $("#plotLedgerTbody");
+  if (!thead || !tbody || !panel) return;
+
+  thead.innerHTML = "";
+  tbody.innerHTML = "";
+
+  const trh = document.createElement("tr");
+  headers.forEach(h => {
+    const th = document.createElement("th");
+    th.textContent = h;
+    trh.appendChild(th);
+  });
+  thead.appendChild(trh);
+
+  rows.forEach(r => {
+    const tr = document.createElement("tr");
+    headers.forEach(h => {
+      const td = document.createElement("td");
+      const raw = r[h] ?? "";
+      td.textContent = formatLedgerCellValue(raw);
+      if (tryNumber(raw) !== null) td.classList.add("right");
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+
+  panel.style.display = "";
+}
+
+async function loadAndRenderLedgerForStrategy(strategyKey) {
+  const panel = $("#plotLedgerPanel");
+  const meta = $("#plotLedgerMeta");
+
+  if (!strategyKey) {
+    clearLedgerUI("Select a plot to view ledger.");
+    return;
+  }
+
+  // example: assets/results/stocks/adi/ledgers/rsi_trade_ledger.csv
+  const url = `assets/results/stocks/${ACTIVE_TICKER}/ledgers/${strategyKey}_trade_ledger.csv`;
+
+  try {
+    const csv = await fetchText(url);
+    const { headers, rows } = parseCSV(csv);
+
+    if (!headers.length) {
+      clearLedgerUI("Ledger file is empty.");
+      return;
+    }
+
+    if (meta) meta.textContent = `${strategyKey.toUpperCase()} • ${rows.length} rows`;
+    renderLedgerTable(headers, rows);
+
+    if (panel) panel.style.display = "";
+  } catch (err) {
+    // 404 = ledger doesn't exist for that strategy/stock
+    if (String(err).includes(": 404")) {
+      clearLedgerUI(`No ledger found for ${strategyKey.toUpperCase()} (missing file).`);
+      return;
+    }
+    throw err; // other errors should surface
+  }
+}
 
 // -----------------------------
 // CSV parsing (robust: quoted commas + escaped quotes)
@@ -321,7 +418,7 @@ function prettyJSON(parsed) {
 // -----------------------------
 function inferStrategyFromPlotFile(file) {
   const f = String(file ?? "").toLowerCase();
-  if (f.includes("sma")) return "sma";
+  if (f.includes("sma")) return "sma_price";
   if (f.includes("rsi")) return "rsi";
   if (f.includes("macd")) return "macd";
   if (f.includes("boll")) return "bollinger";
@@ -345,14 +442,60 @@ function findBestRowForStrategy(strategyKey) {
   return LB_ROWS[0];
 }
 
+function flattenKV(obj, prefix = "") {
+  const out = [];
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return out;
+
+  const keys = Object.keys(obj).sort();
+  for (const k of keys) {
+    const v = obj[k];
+    const key = prefix ? `${prefix}.${k}` : k;
+    if (v && typeof v === "object" && !Array.isArray(v)) {
+      out.push(...flattenKV(v, key));
+    } else {
+      out.push([key, v]);
+    }
+  }
+  return out;
+}
+
+function renderParamsSections(parsed) {
+  // parsed expected like { portfolio: {...}, strategy: {...} }
+  const topKeys = Object.keys(parsed || {}).sort();
+  if (!topKeys.length) return `<div class="muted">No params.</div>`;
+
+  return topKeys.map(sectionName => {
+    const section = parsed[sectionName];
+    const pairs = (section && typeof section === "object" && !Array.isArray(section))
+      ? flattenKV(section)
+      : [[sectionName, section]];
+
+    const rowsHtml = pairs.map(([k, v]) => `
+      <tr>
+        <td class="params-k">${escapeHtml(k)}</td>
+        <td class="params-v">${escapeHtml(String(v))}</td>
+      </tr>
+    `).join("");
+
+    return `
+      <div class="params-section">
+        <div class="params-title">${escapeHtml(sectionName)}</div>
+        <table class="params-table">
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>
+    `;
+  }).join("");
+}
+
 function renderPlotBestParams(plotFile) {
-  const pre = $("#plotBestParamsPre");
+  const box = $("#plotBestParamsBox");
   const meta = $("#plotBestParamsMeta");
-  if (!pre || !meta) return;
+  if (!box || !meta) return;
 
   if (!plotFile) {
     meta.textContent = "—";
-    pre.textContent = "Select a plot to view params.";
+    box.textContent = "Select a plot to view params.";
     return;
   }
 
@@ -361,25 +504,61 @@ function renderPlotBestParams(plotFile) {
 
   if (!row) {
     meta.textContent = "—";
-    pre.textContent = "No leaderboard rows available.";
+    box.textContent = "No leaderboard rows available.";
     return;
   }
 
   meta.textContent = strategyKey ? `Strategy: ${strategyKey.toUpperCase()}` : "Strategy: —";
 
-  const raw =
-    row["Best Params"] ??
-    row["best params"] ??
-    row["BEST PARAMS"] ??
-    "";
-
+  const raw = row["Best Params"] ?? row["best params"] ?? row["BEST PARAMS"] ?? "";
   const parsed = safeJSONParseBestParams(raw);
-  pre.textContent = parsed ? prettyJSON(parsed) : String(raw ?? "");
+
+  if (!parsed) {
+    box.textContent = String(raw ?? "");
+    return;
+  }
+
+  box.innerHTML = renderParamsSections(parsed);
 }
+
 
 // -----------------------------
 // Rendering: Leaderboard
 // -----------------------------
+function isPercentColumn(headerName) {
+  const h = String(headerName || "").toLowerCase();
+  return h.includes("cagr") || h.includes("total return") || h === "return" || h.includes("annual");
+}
+
+function formatNumber2(x) {
+  // 2 decimals, but keep integers clean if you want: comment next line if not desired
+  return Number(x).toLocaleString(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+}
+
+function formatCellValue(header, v) {
+  const s = String(v ?? "").trim();
+  if (s === "") return "";
+
+  // if it's already percent in text
+  if (s.includes("%")) {
+    const n = tryNumber(s);
+    if (n === null) return s;
+    return `${formatNumber2(n)}%`;
+  }
+
+  const n = tryNumber(s);
+  if (n === null) return s;
+
+  // Percent columns: convert fraction -> percent
+  if (isPercentColumn(header)) {
+    // Heuristic: if value looks like 0.12 then it's 12%, if it looks like 12 then it's already percent
+    const pct = Math.abs(n) <= 1.5 ? n * 100 : n;
+    return `${formatNumber2(pct)}%`;
+  }
+
+  return formatNumber2(n);
+}
+
 function renderLeaderboard(headers, rows) {
   const thead = $("#leaderboardThead");
   const tbody = $("#leaderboardTbody");
@@ -387,33 +566,38 @@ function renderLeaderboard(headers, rows) {
   thead.innerHTML = "";
   tbody.innerHTML = "";
 
-  const trh = document.createElement("tr");
-  headers.forEach(h => {
-    const th = document.createElement("th");
-    th.textContent = h;
-    trh.appendChild(th);
-  });
-  thead.appendChild(trh);
+  // ✅ Remove Best Params column from display
+  const displayHeaders = headers.filter(h => String(h).trim().toLowerCase() !== "best params");
 
+  // header row
+  const key = String(h).trim().toLowerCase();
+  const href = GLOSSARY_LINKS[key];
+
+  if (href) {
+    const a = document.createElement("a");
+    a.href = href;
+    a.textContent = h;
+    a.className = "glosslink";
+    th.appendChild(a);
+  } else {
+    th.textContent = h;
+  }
+
+
+  // body
   rows.forEach(r => {
     const tr = document.createElement("tr");
 
-    headers.forEach(h => {
+    displayHeaders.forEach(h => {
       const td = document.createElement("td");
-      const v = r[h] ?? "";
+      const raw = r[h] ?? "";
 
-      if (h.toLowerCase() === "best params") {
-        const parsed = safeJSONParseBestParams(v);
-        td.classList.add("mono");
-        td.textContent = parsed ? makeBestParamsSummary(parsed) : String(v ?? "");
-        tr.appendChild(td);
-        return;
-      }
+      const formatted = formatCellValue(h, raw);
+      td.textContent = formatted;
 
-      // NORMAL cells must set textContent (your current file was missing this)
-      td.textContent = v;
+      // right align if numeric-ish OR percent column
+      if (tryNumber(raw) !== null || isPercentColumn(h)) td.classList.add("right");
 
-      if (tryNumber(v) !== null) td.classList.add("right");
       tr.appendChild(td);
     });
 
@@ -529,6 +713,7 @@ function setActivePlot(file) {
     frame.removeAttribute("src");
     href.setAttribute("href", "#");
     renderPlotBestParams(null);
+    clearLedgerUI("Select a plot to view ledger.");
     return;
   }
 
@@ -537,7 +722,13 @@ function setActivePlot(file) {
   href.href = src;
 
   renderPlotBestParams(ACTIVE_PLOT);
+
+  // NEW: ledger under the plot
+  const strategyKey = inferStrategyFromPlotFile(ACTIVE_PLOT);
+  loadAndRenderLedgerForStrategy(strategyKey).catch(showError);
 }
+
+
 
 function bindDownloadLeaderboard() {
   const btn = $("#downloadLeaderboardBtn");

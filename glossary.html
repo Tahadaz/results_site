@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Metrics & Parameters Glossary</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+  <div class="topbar">
+    <div class="container topbar__inner">
+      <div class="brand">
+        <div class="brand__mark">BR</div>
+        <div>
+          <div class="brand__title">Backtest Results</div>
+          <div class="brand__subtitle">Glossary of metrics & parameters</div>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <a class="btn btn--ghost" href="index.html">← Back to results</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="container" style="padding: 1rem 0 2rem;">
+    <div class="panel">
+      <div class="panel__header">
+        <div class="panel__header--row">
+          <h3 class="panel__title">Definitions</h3>
+          <div class="panel__meta">Click any metric in the results to jump here.</div>
+        </div>
+      </div>
+
+      <div class="about">
+        <h4 id="cagr">CAGR (Compound Annual Growth Rate)</h4>
+        <p class="muted">
+          Annualized growth rate over the backtest period. Equivalent constant yearly rate that matches the total return.
+        </p>
+
+        <h4 id="total-return">Total Return</h4>
+        <p class="muted">
+          Cumulative return over the period: (Ending Equity / Starting Equity) − 1.
+        </p>
+
+        <h4 id="max-drawdown">Max Drawdown (MDD)</h4>
+        <p class="muted">
+          Largest peak-to-trough decline in equity curve (usually expressed as a percentage).
+        </p>
+
+        <h4 id="sharpe">Sharpe Ratio</h4>
+        <p class="muted">
+          Risk-adjusted return: mean(excess returns) / std(returns). (Specify your return frequency and risk-free assumption.)
+        </p>
+
+        <hr style="border:0;border-top:1px solid var(--border);margin:1rem 0;">
+
+        <h4 id="signal">Signal (-1, 0, +1)</h4>
+        <p class="muted">
+          Trading instruction per strategy: -1 sell, 0 hold, +1 buy. Your aggregated stock signal is sign(sum of signals).
+        </p>
+
+        <h4 id="cooldown-bars">Cooldown Bars</h4>
+        <p class="muted">
+          Minimum number of bars to wait between trades/signals to reduce churn and overtrading.
+        </p>
+
+        <h4 id="window">Window</h4>
+        <p class="muted">
+          Lookback period used by an indicator (e.g., RSI 14 means RSI uses the last 14 bars).
+        </p>
+
+        <!-- Add as many sections as you want -->
+      </div>
+    </div>
+  </div>
+</body>
+</html>

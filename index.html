@@ -4,7 +4,6 @@
   
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Backtest Results</title>
   <meta name="description" content="Technical-analysis strategy backtests and parameter optimization results." />
@@ -108,7 +107,7 @@
               <option value="Win %">Win %</option>
               <option value="# Trades"># Trades</option>
             </select>
-
+            <a class="btn btn--ghost" href="glossary.html">Definitions</a>
             <button class="btn btn--ghost" id="downloadLeaderboardBtn" type="button">Download CSV</button>
           </div>
         </div>
@@ -155,8 +154,24 @@
               <div class="panel__meta" id="plotBestParamsMeta">—</div>
             </div>
           </div>
+          <div id="plotLedgerPanel" class="panel" style="margin-top: 1rem; display:none;">
+            <div class="panel__header">
+              <div class="panel__header--row">
+                <h3 class="panel__title">Trade Ledger (selected strategy)</h3>
+                <div class="panel__meta" id="plotLedgerMeta">—</div>
+              </div>
+            </div>
+
+            <div class="tablewrap">
+              <table class="table" id="plotLedgerTable">
+                <thead id="plotLedgerThead"></thead>
+                <tbody id="plotLedgerTbody"></tbody>
+              </table>
+            </div>
+          </div>
+
           <div class="plotframewrap">
-            <pre id="plotBestParamsPre" class="bestparams__details mono" style="display:block;">Select a plot to view params.</pre>
+            <div id="plotBestParamsBox" class="paramsbox">Select a plot to view params.</div>
           </div>
         </div>
 

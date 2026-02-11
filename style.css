@@ -40,6 +40,9 @@ body { margin: 0; }
   display: grid;
   grid-template-columns: 340px 1fr;
   gap: 1rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 @media (max-width: 980px){
@@ -74,21 +77,15 @@ code{
 }
 
 .topbar{
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  border-bottom: 1px solid var(--border);
-  background: rgba(246,248,251,0.82);
-  backdrop-filter: blur(10px);
+  width: 100%;
+  left: 0;
+  right: 0;
 }
 
 .topbar__inner{
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.85rem 0;
-  gap: 1rem;
+  width: 100%;
 }
+
 
 .main{
   display: grid;
@@ -122,6 +119,7 @@ code{
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   overflow: hidden;
+  min-width: 0;
 }
 
 .panel__header{
@@ -223,6 +221,7 @@ code{
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  min-width: 0;
 }
 
 /* ---------- about ---------- */
@@ -355,15 +354,16 @@ code{
 
 /* ---------- table ---------- */
 .tablewrap{
-  padding: 0.75rem 1rem 1rem;
-  overflow: auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
 }
 
 .table{
   width: 100%;
-  border-collapse: collapse;
-  min-width: 680px;
+  min-width: 0; /* IMPORTANT: removes forced overflow */
 }
+
 
 .table thead th{
   text-align: left;
@@ -395,16 +395,17 @@ code{
 
 /* ---------- plots ---------- */
 .plotframewrap{
-  padding: 0.75rem 1rem 1rem;
+  overflow: hidden;
+  max-width: 100%;
 }
 
 .plotframe{
+  display: block;
   width: 100%;
-  height: 640px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius2);
-  background: #fff;
+  max-width: 100%;
+  height: min(72vh, 720px); /* responsive height */
 }
+
 
 /* ---------- empty / error ---------- */
 .empty{
@@ -523,4 +524,68 @@ code{
 .signal--hold{
   border-color: rgba(100,116,139,0.25);
   background: rgba(100,116,139,0.06);
+}
+html, body {
+  max-width: 100%;
+  overflow-x: hidden; /* prevents layout "debord" */
+}
+.paramsbox{
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(15,23,42,0.02);
+  padding: 0.85rem;
+}
+
+.params-section{
+  margin-bottom: 0.9rem;
+}
+.params-section:last-child{
+  margin-bottom: 0;
+}
+
+.params-title{
+  font-weight: 800;
+  margin-bottom: 0.5rem;
+  color: rgba(15,23,42,0.85);
+}
+
+.params-table{
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.params-table td{
+  padding: 0.35rem 0.25rem;
+  border-bottom: 1px solid rgba(15,23,42,0.08);
+  vertical-align: top;
+}
+
+.params-table tr:last-child td{
+  border-bottom: none;
+}
+
+.params-k{
+  color: rgba(15,23,42,0.70);
+  width: 55%;
+}
+
+.params-v{
+  font-family: var(--mono);
+  text-align: right;
+  color: rgba(15,23,42,0.88);
+}
+.glosslink{
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: rgba(29,78,216,0.35);
+  text-underline-offset: 3px;
+}
+.glosslink:hover{
+  text-decoration-color: rgba(29,78,216,0.75);
+}
+/* Ledger: slightly denser rows */
+#plotLedgerTable td, #plotLedgerTable th{
+  padding: 0.55rem 0.55rem;
+  font-size: 0.9rem;
 }
