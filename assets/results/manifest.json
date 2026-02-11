@@ -1,0 +1,31 @@
+{
+  "site_title": "Backtest Results",
+  "about": {
+    "subtitle": "Technical-analysis strategy backtests and parameter optimization",
+    "bullets": [
+      "We test multiple TA strategies (SMA, MA Cross, RSI, MACD, Bollinger).",
+      "We optimize parameters per strategy and compare performance.",
+      "We report risk and trading statistics and visualize signals."
+    ]
+  },
+  "stocks": [
+    { "ticker": "iam",  "name": "ITISSALAT AL MAGHRIB" },
+    { "ticker": "atw",  "name": "ATTIJARIWAFA BANK" },
+    { "ticker": "CSR",  "name": "COSUMAR" },
+    { "ticker": "SNA",  "name": "STOCKVIS NORD AFRI" },
+    { "ticker": "adh",  "name": "ADDOHA" },
+    { "ticker": "adi",  "name": "ALLIANCES" },
+    { "ticker": "akt",  "name": "AKDITAL" },
+    { "ticker": "bcp",  "name": "BCP" },
+    { "ticker": "cap",  "name": "ARADEI CAPITAL" },
+    { "ticker": "cdm",  "name": "CREDIT DU MAROC" },
+    { "ticker": "cfg",  "name": "CFG BANK" },
+    { "ticker": "jet",  "name": "JET CONTRACTORS" },
+    { "ticker": "lhm",  "name": "LAFARGE HOLCIM MAROC" },
+    { "ticker": "msa",  "name": "MARSA MAROC" },
+    { "ticker": "sgtm", "name": "SGTM S.A" },
+    { "ticker": "tgc",  "name": "TGCC" },
+    { "ticker": "vcn",  "name": "VICENNE" }
+  ],
+  "generated_at": "2026-02-10T21:53:38"
+}
