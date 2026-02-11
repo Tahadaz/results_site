@@ -9,23 +9,23 @@
     ]
   },
   "stocks": [
-    { "ticker": "IAM",  "name": "ITISSALAT AL MAGHRIB" },
-    { "ticker": "ATW",  "name": "ATTIJARIWAFA BANK" },
+    { "ticker": "iam",  "name": "ITISSALAT AL MAGHRIB" },
+    { "ticker": "atw",  "name": "ATTIJARIWAFA BANK" },
     { "ticker": "CSR",  "name": "COSUMAR" },
     { "ticker": "SNA",  "name": "STOCKVIS NORD AFRI" },
-    { "ticker": "ADH",  "name": "ADDOHA" },
-    { "ticker": "ADI",  "name": "ALLIANCES" },
-    { "ticker": "AKT",  "name": "AKDITAL" },
-    { "ticker": "BCP",  "name": "BCP" },
-    { "ticker": "CAP",  "name": "ARADEI CAPITAL" },
-    { "ticker": "CDM",  "name": "CREDIT DU MAROC" },
-    { "ticker": "CFG",  "name": "CFG BANK" },
-    { "ticker": "JET",  "name": "JET CONTRACTORS" },
-    { "ticker": "LHM",  "name": "LAFARGE HOLCIM MAROC" },
-    { "ticker": "MSA",  "name": "MARSA MAROC" },
-    { "ticker": "SGTM", "name": "SGTM S.A" },
-    { "ticker": "TGC",  "name": "TGCC" },
-    { "ticker": "VCN",  "name": "VICENNE" }
+    { "ticker": "adh",  "name": "ADDOHA" },
+    { "ticker": "adi",  "name": "ALLIANCES" },
+    { "ticker": "akt",  "name": "AKDITAL" },
+    { "ticker": "bcp",  "name": "BCP" },
+    { "ticker": "cap",  "name": "ARADEI CAPITAL" },
+    { "ticker": "cdm",  "name": "CREDIT DU MAROC" },
+    { "ticker": "cfg",  "name": "CFG BANK" },
+    { "ticker": "jet",  "name": "JET CONTRACTORS" },
+    { "ticker": "lhm",  "name": "LAFARGE HOLCIM MAROC" },
+    { "ticker": "msa",  "name": "MARSA MAROC" },
+    { "ticker": "sgtm", "name": "SGTM S.A" },
+    { "ticker": "tgc",  "name": "TGCC" },
+    { "ticker": "vcn",  "name": "VICENNE" }
   ],
   "generated_at": "2026-02-10T21:53:38"
 }
