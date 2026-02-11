@@ -131,6 +131,7 @@
             <label class="toolbar__label" for="plotPicker">Select plot</label>
             <select id="plotPicker" class="select"></select>
 
+
             <a class="btn btn--ghost" href="#" id="openPlotNewTab" target="_blank" rel="noopener">Open in new tab</a>
           </div>
         </div>
@@ -143,6 +144,17 @@
             loading="lazy"
             referrerpolicy="no-referrer"
           ></iframe>
+        </div>
+        <div id="plotBestParams" class="panel" style="margin-top: 1rem;">
+          <div class="panel__header">
+            <div class="panel__header--row">
+              <h3 class="panel__title">Best Params (for selected plot)</h3>
+              <div class="panel__meta" id="plotBestParamsMeta">—</div>
+            </div>
+          </div>
+          <div class="plotframewrap">
+            <pre id="plotBestParamsPre" class="bestparams__details mono" style="display:block;">Select a plot to view params.</pre>
+          </div>
         </div>
 
         <div class="panel__footer">

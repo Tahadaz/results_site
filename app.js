@@ -14,12 +14,29 @@ async function fetchText(url) {
   if (!r.ok) throw new Error(`Failed to load ${url}: ${r.status}`);
   return await r.text();
 }
+
+// -----------------------------
+// Ticker helpers
+// -----------------------------
 function normalizeTicker(t) {
   return String(t ?? "").trim().toUpperCase();
 }
 
+function pickTicker(s) {
+  // Accept common field names from manifest.json
+  const t =
+    s?.ticker ??
+    s?.Ticker ??
+    s?.symbol ??
+    s?.Symbol ??
+    s?.code ??
+    s?.Code ??
+    "";
+  return String(t).trim();
+}
+
 // -----------------------------
-// CSV parsing (robust, supports quoted commas + escaped quotes)
+// CSV parsing (robust: quoted commas + escaped quotes)
 // -----------------------------
 function parseCSV(csvText) {
   const text = (csvText ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
@@ -54,7 +71,6 @@ function parseCSV(csvText) {
       } else if (c === "\n") {
         row.push(field);
         field = "";
-        // ignore empty trailing lines
         if (row.some(x => x.trim() !== "")) rows.push(row);
         row = [];
       } else {
@@ -63,7 +79,7 @@ function parseCSV(csvText) {
     }
   }
 
-  // flush last field/row
+  // flush last row
   row.push(field);
   if (row.some(x => x.trim() !== "")) rows.push(row);
 
@@ -72,13 +88,12 @@ function parseCSV(csvText) {
 
   const outRows = dataRows.map(cols => {
     const obj = {};
-    headers.forEach((h, idx) => obj[h] = (cols[idx] ?? "").trim());
+    headers.forEach((h, idx) => (obj[h] = (cols[idx] ?? "").trim()));
     return obj;
   });
 
   return { headers, rows: outRows };
 }
-
 
 // -----------------------------
 // DOM helpers
@@ -121,14 +136,14 @@ function tryNumber(x) {
 // Global state
 // -----------------------------
 let SITE = null;         // manifest.json
-let STOCKS = [];         // manifest.stocks
+let STOCKS = [];         // normalized manifest.stocks
 let ACTIVE_TICKER = null;
 
 let LB_HEADERS = [];
 let LB_ROWS = [];
 let LB_CSV_URL = null;
 
-let PLOTS = [];          // plots.json plots
+let PLOTS = [];
 let ACTIVE_PLOT = null;
 
 // -----------------------------
@@ -140,14 +155,17 @@ function renderStockList(stocks) {
 
   stocks.forEach(s => {
     const item = el("div", "stockitem");
+
+    // IMPORTANT: dataset.ticker must match the ticker used in loadStock() (folder key)
     item.dataset.ticker = s.ticker;
 
     const left = el("div", "stockitem__left");
+
     const t = el("div", "stockitem__ticker");
-    t.textContent = s.ticker;
+    t.textContent = s.ticker_display || s.ticker;
 
     const n = el("div", "stockitem__name");
-    n.textContent = s.name || s.ticker;
+    n.textContent = s.name || s.ticker_display || s.ticker;
 
     left.appendChild(t);
     left.appendChild(n);
@@ -165,7 +183,6 @@ function renderStockList(stocks) {
     list.appendChild(item);
   });
 
-  // apply active highlight
   updateActiveStockInList();
 }
 
@@ -181,11 +198,10 @@ function setupSearch() {
   input.addEventListener("input", () => {
     const q = input.value.trim().toLowerCase();
     const filtered = STOCKS.filter(s => {
-      const a = (s.ticker_norm || "").toLowerCase();
-      const b = (s.name || "").toLowerCase();
+      const a = String(s.ticker_display || s.ticker || "").toLowerCase();
+      const b = String(s.name || "").toLowerCase();
       return a.includes(q) || b.includes(q);
     });
-
     renderStockList(filtered);
   });
 }
@@ -215,7 +231,6 @@ function renderProfile(profile) {
   $("#stockTicker").textContent = profile.ticker || ACTIVE_TICKER || "—";
   $("#stockName").textContent = profile.name || profile.ticker || "—";
 
-  // Optional meta line: exchange / currency / period / anything you store
   const metaBits = [];
   if (profile.exchange) metaBits.push(profile.exchange);
   if (profile.currency) metaBits.push(profile.currency);
@@ -232,7 +247,6 @@ function renderProfile(profile) {
 
   $("#stockSummary").textContent = profile.summary || "";
 
-  // Optional notes array -> bullet list
   const notes = profile.notes;
   if (Array.isArray(notes) && notes.length) {
     const box = $("#stockNotes");
@@ -245,75 +259,37 @@ function renderProfile(profile) {
     setVisible("#stockNotes", false);
   }
 }
+
+// -----------------------------
+// Best params parsing + formatting
+// -----------------------------
 function safeJSONParseBestParams(raw) {
   if (!raw) return null;
 
   let s = String(raw).trim();
 
-  // If cell is wrapped in extra quotes, remove them
+  // If wrapped in extra quotes, remove them
   if (s.length >= 2 && s[0] === '"' && s[s.length - 1] === '"') {
     s = s.slice(1, -1);
   }
 
-  // Handle the CSV-style doubled quotes {""a"":1} -> {"a":1}
+  // Handle CSV doubled quotes {""a"":1} -> {"a":1}
   if (s.includes('""')) s = s.replace(/""/g, '"');
 
-  // Sometimes people export with single quotes (rare but possible)
-  // We do NOT blindly replace all single quotes (can corrupt data),
-  // but if JSON.parse fails, we attempt a conservative fallback.
   try {
     return JSON.parse(s);
   } catch (_) {
     try {
-      const s2 = s.replace(/([{,]\s*)'([^']+?)'(\s*:)/g, '$1"$2"$3')  // keys
-                  .replace(/:\s*'([^']*?)'(\s*[},])/g, ':"$1"$2');   // string values
+      const s2 = s
+        .replace(/([{,]\s*)'([^']+?)'(\s*:)/g, '$1"$2"$3')
+        .replace(/:\s*'([^']*?)'(\s*[},])/g, ':"$1"$2');
       return JSON.parse(s2);
-    } catch (e2) {
+    } catch {
       return null;
     }
   }
 }
 
-function flattenParams(obj, prefix = "") {
-  const out = [];
-  if (obj && typeof obj === "object" && !Array.isArray(obj)) {
-    const keys = Object.keys(obj).sort();
-    for (const k of keys) {
-      const v = obj[k];
-      const p = prefix ? `${prefix}.${k}` : k;
-      if (v && typeof v === "object" && !Array.isArray(v)) {
-        out.push(...flattenParams(v, p));
-      } else {
-        out.push([p, v]);
-      }
-    }
-  }
-  return out;
-}
-
-function formatBestParams(raw) {
-  const parsed = safeJSONParseBestParams(raw);
-  if (!parsed) return String(raw ?? "");
-
-  // Group by top-level (portfolio, strategy, etc.) for readability
-  const topKeys = Object.keys(parsed).sort();
-  const lines = [];
-
-  for (const top of topKeys) {
-    const v = parsed[top];
-    if (v && typeof v === "object" && !Array.isArray(v)) {
-      lines.push(`${top}:`);
-      const pairs = flattenParams(v, "");
-      for (const [k, val] of pairs) {
-        lines.push(`  ${k} = ${val}`);
-      }
-    } else {
-      lines.push(`${top} = ${v}`);
-    }
-  }
-
-  return lines.join("\n");
-}
 function pickParam(obj, path, fallback = null) {
   try {
     return path.split(".").reduce((acc, k) => acc?.[k], obj) ?? fallback;
@@ -321,7 +297,6 @@ function pickParam(obj, path, fallback = null) {
 }
 
 function makeBestParamsSummary(parsed) {
-  // you can tailor these to what you care about
   const window = pickParam(parsed, "strategy.window", "");
   const buy = pickParam(parsed, "portfolio.buy_pct_cash", "");
   const sell = pickParam(parsed, "portfolio.sell_pct_shares", "");
@@ -334,7 +309,6 @@ function makeBestParamsSummary(parsed) {
   if (sell !== "") bits.push(`sell=${sell}`);
   if (cd !== "") bits.push(`cd=${cd}`);
   if (minR !== "") bits.push(`minRet=${minR}`);
-
   return bits.join(" · ");
 }
 
@@ -343,8 +317,68 @@ function prettyJSON(parsed) {
 }
 
 // -----------------------------
+// Plot -> strategy mapping and "Best Params below plot"
+// -----------------------------
+function inferStrategyFromPlotFile(file) {
+  const f = String(file ?? "").toLowerCase();
+  if (f.includes("sma")) return "sma";
+  if (f.includes("rsi")) return "rsi";
+  if (f.includes("macd")) return "macd";
+  if (f.includes("boll")) return "bollinger";
+  if (f.includes("bbands")) return "bollinger";
+  return f.split(/[_.-]/)[0] || "";
+}
+
+function findBestRowForStrategy(strategyKey) {
+  if (!LB_ROWS?.length) return null;
+
+  const candCols = ["strategy", "Strategy", "strat", "Strat", "signal", "Signal"];
+  const stratCol = candCols.find(c => LB_HEADERS.includes(c));
+
+  if (stratCol && strategyKey) {
+    const matches = LB_ROWS.filter(r =>
+      String(r[stratCol] ?? "").toLowerCase().includes(strategyKey)
+    );
+    if (matches.length) return matches[0]; // assumes LB_ROWS already sorted
+  }
+
+  return LB_ROWS[0];
+}
+
+function renderPlotBestParams(plotFile) {
+  const pre = $("#plotBestParamsPre");
+  const meta = $("#plotBestParamsMeta");
+  if (!pre || !meta) return;
+
+  if (!plotFile) {
+    meta.textContent = "—";
+    pre.textContent = "Select a plot to view params.";
+    return;
+  }
+
+  const strategyKey = inferStrategyFromPlotFile(plotFile);
+  const row = findBestRowForStrategy(strategyKey);
+
+  if (!row) {
+    meta.textContent = "—";
+    pre.textContent = "No leaderboard rows available.";
+    return;
+  }
+
+  meta.textContent = strategyKey ? `Strategy: ${strategyKey.toUpperCase()}` : "Strategy: —";
+
+  const raw =
+    row["Best Params"] ??
+    row["best params"] ??
+    row["BEST PARAMS"] ??
+    "";
+
+  const parsed = safeJSONParseBestParams(raw);
+  pre.textContent = parsed ? prettyJSON(parsed) : String(raw ?? "");
+}
+
+// -----------------------------
 // Rendering: Leaderboard
-// Uses #leaderboardThead and #leaderboardTbody from index.html
 // -----------------------------
 function renderLeaderboard(headers, rows) {
   const thead = $("#leaderboardThead");
@@ -353,7 +387,6 @@ function renderLeaderboard(headers, rows) {
   thead.innerHTML = "";
   tbody.innerHTML = "";
 
-  // header row
   const trh = document.createElement("tr");
   headers.forEach(h => {
     const th = document.createElement("th");
@@ -362,50 +395,28 @@ function renderLeaderboard(headers, rows) {
   });
   thead.appendChild(trh);
 
-  // body rows
   rows.forEach(r => {
     const tr = document.createElement("tr");
+
     headers.forEach(h => {
       const td = document.createElement("td");
       const v = r[h] ?? "";
+
       if (h.toLowerCase() === "best params") {
         const parsed = safeJSONParseBestParams(v);
-
-        td.classList.add("bestparams");
-
-        const summary = document.createElement("div");
-        summary.className = "bestparams__summary mono";
-        summary.textContent = parsed ? makeBestParamsSummary(parsed) : String(v ?? "");
-
-        const btn = document.createElement("button");
-        btn.className = "btn btn--ghost bestparams__btn";
-        btn.type = "button";
-        btn.textContent = "Details";
-
-        const details = document.createElement("pre");
-        details.className = "bestparams__details mono";
-        details.textContent = parsed ? prettyJSON(parsed) : String(v ?? "");
-        details.hidden = true;
-
-        btn.addEventListener("click", () => {
-          details.hidden = !details.hidden;
-          btn.textContent = details.hidden ? "Details" : "Hide";
-        });
-
-        td.appendChild(summary);
-        td.appendChild(btn);
-        td.appendChild(details);
-
-        tr.appendChild(td);   // ✅ append the cell
-        return;               // ✅ return from this callback AFTER appending
+        td.classList.add("mono");
+        td.textContent = parsed ? makeBestParamsSummary(parsed) : String(v ?? "");
+        tr.appendChild(td);
+        return;
       }
 
+      // NORMAL cells must set textContent (your current file was missing this)
+      td.textContent = v;
 
-
-      // right align numeric-ish
       if (tryNumber(v) !== null) td.classList.add("right");
       tr.appendChild(td);
     });
+
     tbody.appendChild(tr);
   });
 
@@ -424,10 +435,7 @@ function sortLeaderboardBy(metric) {
     const an = tryNumber(av);
     const bn = tryNumber(bv);
 
-    // numeric desc if possible
     if (an !== null && bn !== null) return bn - an;
-
-    // otherwise string asc
     return String(av ?? "").localeCompare(String(bv ?? ""));
   });
 
@@ -435,10 +443,9 @@ function sortLeaderboardBy(metric) {
 }
 
 // -----------------------------
-// Rendering: Plots (single iframe + select)
+// Rendering: Plots
 // -----------------------------
 async function listPlotFiles(ticker) {
-  // expects: { "plots": ["plot1.html", ...] } OR { "plots": [{ "file": "...", "label": "..."}, ...] }
   const url = `assets/results/stocks/${ticker}/plots/plots.json`;
   return await fetchJSON(url);
 }
@@ -470,9 +477,7 @@ function renderPlotPicker(plots) {
     sel.appendChild(opt);
   });
 
-  sel.addEventListener("change", () => {
-    setActivePlot(sel.value);
-  });
+  sel.onchange = () => setActivePlot(sel.value);
 }
 
 function setActivePlot(file) {
@@ -483,13 +488,15 @@ function setActivePlot(file) {
   if (!ACTIVE_PLOT) {
     frame.removeAttribute("src");
     href.setAttribute("href", "#");
+    renderPlotBestParams(null);
     return;
   }
 
   const src = `assets/results/stocks/${ACTIVE_TICKER}/plots/${ACTIVE_PLOT}`;
   frame.src = src;
-
   href.href = src;
+
+  renderPlotBestParams(ACTIVE_PLOT);
 }
 
 function bindDownloadLeaderboard() {
@@ -520,7 +527,6 @@ function showError(err) {
 }
 
 function setLoadingState(isLoading) {
-  // minimal: disable refresh button while loading
   const r = $("#refreshBtn");
   if (r) r.style.pointerEvents = isLoading ? "none" : "auto";
   if (r) r.style.opacity = isLoading ? "0.6" : "1";
@@ -537,15 +543,20 @@ function showContentPanels(hasStock) {
 }
 
 // -----------------------------
-// Load one stock (profile + leaderboard + plots)
+// Load one stock
 // -----------------------------
 async function loadStock(ticker) {
+  if (!ticker) {
+    throw new Error(
+      "loadStock() called with empty ticker. Check manifest.json stocks entries (expected ticker/symbol/code)."
+    );
+  }
+
   clearError();
   setLoadingState(true);
 
   ACTIVE_TICKER = ticker;
   updateActiveStockInList();
-
   showContentPanels(true);
 
   // profile.json
@@ -560,7 +571,7 @@ async function loadStock(ticker) {
   LB_HEADERS = headers;
   LB_ROWS = rows;
 
-  // default sort metric: whatever current dropdown says
+  // sort metric
   const metric = $("#rankBy").value || "CAGR";
   sortLeaderboardBy(metric);
 
@@ -568,6 +579,7 @@ async function loadStock(ticker) {
   const plotsManifest = await listPlotFiles(ticker);
   PLOTS = normalizePlots(plotsManifest);
   renderPlotPicker(PLOTS);
+
   if (PLOTS.length) {
     $("#plotPicker").value = PLOTS[0].file;
     setActivePlot(PLOTS[0].file);
@@ -575,9 +587,7 @@ async function loadStock(ticker) {
     setActivePlot(null);
   }
 
-  // leaderboard download button
   bindDownloadLeaderboard();
-
   setLoadingState(false);
 }
 
@@ -589,39 +599,43 @@ async function init() {
   setLoadingState(true);
 
   SITE = await fetchJSON("assets/results/manifest.json");
-  STOCKS = SITE.stocks || [];
-  STOCKS = STOCKS.map(s => ({
-  ticker_raw: s.ticker,
-  ticker_norm: normalizeTicker(s.ticker),
-}));
 
+  // Normalize stocks once, keep:
+  // - ticker: used for folder paths (must match your /assets/results/stocks/{ticker}/)
+  // - ticker_display: shown in UI (UPPERCASE, professional)
+  STOCKS = (SITE.stocks || [])
+    .map(s => {
+      const ticker = pickTicker(s);
+      return {
+        ...s,
+        ticker,
+        ticker_display: normalizeTicker(ticker),
+      };
+    })
+    .filter(s => s.ticker);
 
   renderAbout(SITE);
   renderStockList(STOCKS);
   setupSearch();
 
-  // rank dropdown
-  $("#rankBy").addEventListener("change", () => {
+  $("#rankBy").onchange = () => {
     const metric = $("#rankBy").value;
     sortLeaderboardBy(metric);
-  });
+  };
 
-  // refresh button
-  $("#refreshBtn").addEventListener("click", (e) => {
+  $("#refreshBtn").onclick = (e) => {
     e.preventDefault();
     init().catch(showError);
-  });
+  };
 
-  // Optional repo button if you add SITE.repo_url
   if (SITE.repo_url) {
     const b = $("#openRepoBtn");
     b.href = SITE.repo_url;
     b.style.display = "";
   }
 
-  // If at least one stock, auto-load first
   if (STOCKS.length > 0) {
-    await loadStock(STOCKS[0].ticker_norm);
+    await loadStock(STOCKS[0].ticker);
   } else {
     showContentPanels(false);
   }
