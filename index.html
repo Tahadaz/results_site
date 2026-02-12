@@ -1,4 +1,3 @@
-<!-- index.html -->
 <!doctype html>
 <html lang="en">
   
@@ -50,7 +49,7 @@
 
       <div class="panel__footer">
         <div class="hint">
-          Tip: export results per stock into <code>assets/results/stocks/&lt;ticker&gt;/</code>
+          Tip: exports are under <code>assets/results/runs/&lt;run_id&gt;/stocks/&lt;ticker&gt;/</code>
         </div>
       </div>
     </aside>
@@ -81,7 +80,6 @@
 
           <div class="stockheader__right">
             <div class="pill" id="stockSector" style="display:none;"></div>
-            <div class="pill signal signal--hold" id="stockAggSignal" style="display:none;">HOLD</div>
           </div>
         </div>
 
@@ -91,10 +89,50 @@
         </div>
       </section>
 
+      <!-- SIGNAL AGGREGATION -->
+      <section class="panel panel--signals" id="signalsPanel" style="display:none;">
+        <div class="panel__header">
+          <h2 class="panel__title">Strategy Signals & Final Decision</h2>
+        </div>
+        
+        <div class="signal-aggregation">
+          <!-- Individual strategy signals -->
+          <div class="signal-strategies" id="signalStrategies">
+            <!-- Populated by JS -->
+          </div>
+
+          <!-- Aggregation methods -->
+          <div class="aggregation-methods">
+            <!-- Majority Vote -->
+            <div class="aggregation-card">
+              <div class="aggregation-card__header">
+                <div class="aggregation-card__title">Majority Vote</div>
+              </div>
+              <div class="aggregation-card__result signal signal--hold" id="majorityResult">HOLD</div>
+              <div style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--muted);" id="majorityBreakdown">—</div>
+            </div>
+
+            <!-- Weighted Vote -->
+            <div class="aggregation-card">
+              <div class="aggregation-card__header">
+                <div class="aggregation-card__title">Weighted Vote</div>
+              </div>
+              
+              <div class="weighted-inputs" id="weightedInputs">
+                <!-- Populated by JS -->
+              </div>
+              
+              <div class="aggregation-card__result signal signal--hold" id="weightedResult">HOLD</div>
+              <div style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--muted);" id="weightedBreakdown">—</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- LEADERBOARD -->
       <section class="panel panel--leaderboard" id="leaderboardPanel" style="display:none;">
         <div class="panel__header panel__header--row">
-          <h2 class="panel__title">Leaderboard</h2>
+          <h2 class="panel__title">Strategy Leaderboard</h2>
 
           <div class="toolbar">
             <label class="toolbar__label" for="rankBy">Rank by</label>
@@ -107,7 +145,7 @@
               <option value="Win %">Win %</option>
               <option value="# Trades"># Trades</option>
             </select>
-            <a class="btn btn--ghost" href="glossary.html">Definitions</a>
+            <a class="btn btn--ghost" href="glossary.html" target="_blank">Definitions</a>
             <button class="btn btn--ghost" id="downloadLeaderboardBtn" type="button">Download CSV</button>
           </div>
         </div>
@@ -127,15 +165,15 @@
       <!-- PLOTS -->
       <section class="panel panel--plots" id="plotsPanel" style="display:none;">
         <div class="panel__header panel__header--row">
-          <h2 class="panel__title">Plots</h2>
-
+          <h2 class="panel__title">Strategy Plots</h2>
           <div class="toolbar">
-            <label class="toolbar__label" for="plotPicker">Select plot</label>
-            <select id="plotPicker" class="select"></select>
-
-
             <a class="btn btn--ghost" href="#" id="openPlotNewTab" target="_blank" rel="noopener">Open in new tab</a>
           </div>
+        </div>
+
+        <!-- Plot selection buttons -->
+        <div class="plot-buttons" id="plotButtons">
+          <!-- Populated by JS -->
         </div>
 
         <div class="plotframewrap">
@@ -147,38 +185,44 @@
             referrerpolicy="no-referrer"
           ></iframe>
         </div>
-        <div id="plotBestParams" class="panel" style="margin-top: 1rem;">
-          <div class="panel__header">
-            <div class="panel__header--row">
-              <h3 class="panel__title">Best Params (for selected plot)</h3>
-              <div class="panel__meta" id="plotBestParamsMeta">—</div>
-            </div>
-          </div>
-          <div id="plotLedgerPanel" class="panel" style="margin-top: 1rem; display:none;">
-            <div class="panel__header">
-              <div class="panel__header--row">
-                <h3 class="panel__title">Trade Ledger (selected strategy)</h3>
-                <div class="panel__meta" id="plotLedgerMeta">—</div>
-              </div>
-            </div>
-
-            <div class="tablewrap">
-              <table class="table" id="plotLedgerTable">
-                <thead id="plotLedgerThead"></thead>
-                <tbody id="plotLedgerTbody"></tbody>
-              </table>
-            </div>
-          </div>
-
-          <div class="plotframewrap">
-            <div id="plotBestParamsBox" class="paramsbox">Select a plot to view params.</div>
-          </div>
-        </div>
 
         <div class="panel__footer">
           <div class="hint" id="plotHint">
-            Plots are served from <code>assets/results/stocks/&lt;ticker&gt;/plots/</code>
+            Plots are served from <code>assets/results/runs/&lt;run_id&gt;/stocks/&lt;ticker&gt;/plots/</code>
           </div>
+        </div>
+      </section>
+
+      <!-- BEST PARAMS -->
+      <section class="panel panel--params" id="paramsPanel" style="display:none;">
+        <div class="panel__header">
+          <h2 class="panel__title">Best Parameters</h2>
+          <div class="panel__meta" id="paramsMeta">Select a plot to view parameters</div>
+        </div>
+        
+        <div class="params-display" id="paramsDisplay">
+          <div style="text-align: center; color: var(--muted); padding: 2rem;">
+            Select a strategy plot to view its optimized parameters
+          </div>
+        </div>
+      </section>
+
+      <!-- TRADE LEDGER -->
+      <section class="panel panel--ledger" id="ledgerPanel" style="display:none;">
+        <div class="panel__header">
+          <h2 class="panel__title">Trade Ledger</h2>
+          <div class="panel__meta" id="ledgerMeta">—</div>
+        </div>
+
+        <div class="tablewrap">
+          <table class="table" id="plotLedgerTable">
+            <thead id="plotLedgerThead"></thead>
+            <tbody id="plotLedgerTbody"></tbody>
+          </table>
+        </div>
+
+        <div class="panel__footer">
+          <div class="hint">Individual trade history for the selected strategy</div>
         </div>
       </section>
 
@@ -187,7 +231,7 @@
         <div class="empty">
           <div class="empty__title">Select a company</div>
           <div class="empty__text">
-            Choose a ticker from the left to display its profile, leaderboard, and plots.
+            Choose a ticker from the left to display its profile, signals, leaderboard, and plots.
           </div>
         </div>
       </section>
@@ -205,7 +249,7 @@
   <footer class="footer">
     <div class="container footer__inner">
       <div class="footer__left">
-        <span class="muted">Generated results viewer</span>
+        <span class="muted">Institutional-grade backtest analysis platform</span>
       </div>
       <div class="footer__right">
         <span class="muted">© <span id="year"></span></span>
